@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Attendance System</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; }
+        .header { display: flex; justify-content: space-between; align-items: center; position: relative; }
+        .menu-btn { cursor: pointer; font-size: 24px; padding: 5px; background: #ddd; border-radius: 5px;}
+        .menu-content { display: none; position: absolute; top: 50px; right: 0; background: #fff; border: 1px solid #ccc; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-radius: 5px; z-index: 999; min-width: 220px;}
+        .menu-content button { margin-bottom: 10px; width: 100%; cursor: pointer; padding: 10px 8px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold;}
+        
+        .dashboard { display: flex; gap: 20px; margin-top: 20px; }
+        .stat-box { background: #fff; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #008CBA; flex: 1; text-align: center; }
+        .stat-box h3 { margin: 0; font-size: 24px; color: #333; }
+        .stat-box p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
+        
+        /* Department Cards Styles */
+        .dept-cards-grid { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px; }
+        .dept-card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); flex: 1; min-width: 160px; text-align: center; border-top: 4px solid #9c27b0; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .dept-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0,0,0,0.2); }
+        .dept-card h4 { margin: 0 0 10px 0; color: #333; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 8px;}
+        .dept-card .count { font-size: 28px; font-weight: bold; color: #4CAF50; }
+        .dept-card .total { font-size: 16px; color: #777; font-weight: normal;}
+        
+        .form-box { background: #fff; padding: 15px; border-radius: 8px; margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+        select, input[type="date"], input[type="text"], button { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;}
+        
+        .summary-box { margin-top: 25px; background: #e3f2fd; padding: 15px; border: 1px solid #90caf9; border-radius: 8px; }
+        .summary-box h3 { margin-top: 0; color: #0d47a1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;}
+        .summary-filters { display: flex; gap: 10px; font-weight: normal; font-size: 14px; align-items: center;}
+        .summary-filters select, .summary-filters input { padding: 5px; border: 1px solid #90caf9; border-radius: 4px;}
+        .summary-list { line-height: 1.6; font-size: 16px; margin-top: 15px;}
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 850px; max-height: 80vh; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .close-btn { background: red; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold;}
+        .filter-box { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; background: #f9f9f9; padding: 10px; border-radius: 5px; flex-wrap: wrap;}
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #333; color: white; position: sticky; top: 0; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Attendance System</h2>
+    <div class="menu-btn" onclick="toggleMenu()">&#8942; Menu</div>
+    <div id="menuContent" class="menu-content">
+        <button onclick="openHistoryModal()" style="background: #9c27b0; color: white;">View Attendance History</button>
+        <button onclick="clearAttendanceData()" style="background: red; color: white; margin-bottom: 0;">Clear Local Data</button>
+    </div>
+</div>
+
+<div class="dashboard">
+    <div class="stat-box" style="border-left-color: #4CAF50;">
+        <h3 id="dashDepts">0</h3>
+        <p>Total Departments</p>
+    </div>
+    <div class="stat-box" style="border-left-color: #FF9800;">
+        <h3 id="dashEmps">0</h3>
+        <p>Total Employees</p>
+    </div>
+</div>
+
+<!-- Department-wise Live Cards Section -->
+<div id="deptCardsContainer" class="dept-cards-grid">
+    <!-- Cards will be generated here by JavaScript -->
+</div>
+
+<div class="form-box">
+    <input type="date" id="attDate" required>
+    <select id="empDept" onchange="updateEmployeeList()"><option value="">Loading Depts...</option></select>
+    <select id="empName"><option value="">Select Name</option></select>
+    <select id="empShift"><option value="Day">Day</option><option value="Night">Night</option></select>
+    <button id="addBtn" onclick="addRow()" style="background: #008CBA; color: white; border: none; cursor: pointer; font-weight: bold; padding: 10px 15px;">Add Attendance</button>
+    <button id="fetchBtn" onclick="fetchListFromSheet()" style="background: #2196F3; color: white; border: none; cursor: pointer; font-weight: bold; padding: 10px 15px;">🔄 Sync Google Sheet</button>
+</div>
+
+<div class="summary-box">
+    <h3>
+        Total Present Details
+        <div class="summary-filters">
+            <label><b>From:</b></label> <input type="date" id="sumStart" onchange="updateSummary()">
+            <label><b>To:</b></label> <input type="date" id="sumEnd" onchange="updateSummary()">
+            <select id="summaryDept" onchange="updateSummary()">
+                <option value="all">All Departments</option>
+            </select>
+        </div>
+    </h3>
+    <div id="summaryList" class="summary-list">No data yet.</div>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header"><h3>Attendance History</h3><button class="close-btn" onclick="closeModal('historyModal')">X Close</button></div>
+        <div class="filter-box">
+            <label><b>From:</b></label> <input type="date" id="histStart">
+            <label><b>To:</b></label> <input type="date" id="histEnd">
+            <button onclick="filterTable()" style="background: #2196F3; color: white;">Apply Filter</button>
+            <button onclick="clearFilter()">Show All</button>
+        </div>
+        <table id="attTableMain">
+            <thead><tr><th>Date</th><th>Name</th><th>Dept</th><th>Shift</th></tr></thead>
+            <tbody id="attBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- NEW: Department Specific Details Modal -->
+<div id="deptDetailsModal" class="modal-overlay">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="deptModalTitle">Department Details</h3>
+            <button class="close-btn" onclick="closeModal('deptDetailsModal')">X Close</button>
+        </div>
+        <div class="filter-box" style="justify-content: center; background: #e3f2fd;">
+            <label><b>From:</b></label> <input type="date" id="deptStartDate" onchange="showDeptSpecificData()">
+            <label><b>To:</b></label> <input type="date" id="deptEndDate" onchange="showDeptSpecificData()">
+        </div>
+        <div id="deptModalDataList" class="summary-list" style="margin-top: 15px; max-height: 400px; overflow-y: auto;">
+            <!-- Department Data will show here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // आपका लिंक
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwfxWYviIdE3Ea9ZNzR768AfuuT8Vmb096qpQJ3Z9NZ6Vf8w9u30pybxbnuES9Enmay/exec";
+
+    let data = JSON.parse(localStorage.getItem("configData")) || {};
+    let currentClickedDept = ""; // To track which department card was clicked
+
+    function toggleMenu() {
+        let m = document.getElementById('menuContent');
+        m.style.display = (m.style.display === "block") ? "none" : "block";
+    }
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+    window.onclick = function(event) {
+        if (!event.target.matches('.menu-btn') && !event.target.closest('.menu-content')) {
+            let m = document.getElementById('menuContent');
+            if (m.style.display === "block") m.style.display = "none";
+        }
+    }
+
+    window.handleSheetResponse = function(res) {
+        let fetchBtn = document.getElementById('fetchBtn');
+        
+        if(res && res.status === "success") {
+            if(res.data) {
+                data = res.data;
+                localStorage.setItem("configData", JSON.stringify(data));
+                loadDepts();
+                updateDashboardStats();
+            }
+            
+            if(res.attendanceData && Array.isArray(res.attendanceData)) {
+                let tbody = document.getElementById('attBody');
+                tbody.innerHTML = "";
+                res.attendanceData.forEach(row => {
+                    tbody.innerHTML += `<tr><td>${row.date}</td><td>${row.name}</td><td>${row.dept}</td><td>${row.shift}</td></tr>`;
+                });
+                localStorage.setItem("attendanceData", tbody.innerHTML);
+                updateSummary();
+            }
+            
+            alert("✅ लिस्ट और हाज़िरी सफलतापूर्वक अपडेट हो गई!");
+        } else {
+            alert("Error loading list: " + (res ? res.message : "Unknown Error"));
+        }
+        
+        fetchBtn.innerText = "🔄 Sync Google Sheet";
+        fetchBtn.disabled = false;
+        
+        let oldScript = document.getElementById('jsonpScript');
+        if(oldScript) oldScript.remove();
+    }
+
+    function fetchListFromSheet() {
+        let fetchBtn = document.getElementById('fetchBtn');
+        fetchBtn.innerText = "⏳ Fetching from Sheet...";
+        fetchBtn.disabled = true;
+
+        let oldScript = document.getElementById('jsonpScript');
+        if(oldScript) oldScript.remove();
+
+        let script = document.createElement('script');
+        script.id = 'jsonpScript';
+        script.src = WEB_APP_URL + "?callback=handleSheetResponse&action=fetch_all&ts=" + new Date().getTime();
+        script.onerror = function() {
+            alert("Network Error: Could not connect to Google Sheet.");
+            fetchBtn.innerText = "🔄 Sync Google Sheet";
+            fetchBtn.disabled = false;
+        };
+        document.body.appendChild(script);
+    }
+
+    function sendDataToGoogleSheet(date, name, dept, shift) {
+        let addBtn = document.getElementById('addBtn');
+        addBtn.innerText = "⏳ Saving...";
+        addBtn.disabled = true;
+
+        const params = new URLSearchParams();
+        params.append('date', date);
+        params.append('name', name);
+        params.append('dept', dept);
+        params.append('shift', shift);
+
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            body: params,
+            mode: "no-cors", 
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        })
+        .then(() => {
+            alert("✅ Attendance Saved for " + name);
+        })
+        .catch(err => {
+            console.error(err);
+            alert("⚠️ Request sent, but please check Google Sheet.");
+        })
+        .finally(() => {
+            addBtn.innerText = "Add Attendance";
+            addBtn.disabled = false;
+        });
+    }
+
+    function addRow() {
+        let dateVal = document.getElementById('attDate').value; 
+        let name = document.getElementById('empName').value;
+        let dept = document.getElementById('empDept').value;
+        let shift = document.getElementById('empShift').value;
+        
+        if(!dateVal || !name || !dept) return alert("Please select Date, Department and Name!");
+        
+        let parts = dateVal.split('-');
+        let formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+        
+        let rows = document.querySelectorAll('#attBody tr');
+        let isDuplicate = false;
+        rows.forEach(row => {
+            if(row.cells[0].innerText === formattedDate && row.cells[1].innerText === name && row.cells[3].innerText === shift) {
+                isDuplicate = true;
+            }
+        });
+        
+        if(isDuplicate) {
+            return alert("❌ Attendance already marked for this person and shift today!");
+        }
+        
+        let row = `<tr><td>${formattedDate}</td><td>${name}</td><td>${dept}</td><td>${shift}</td></tr>`;
+        let tbody = document.getElementById('attBody');
+        tbody.innerHTML += row;
+        
+        localStorage.setItem("attendanceData", tbody.innerHTML);
+        updateSummary();
+
+        sendDataToGoogleSheet(formattedDate, name, dept, shift);
+    }
+
+    // NEW: Open Department Modal when a card is clicked
+    function openDeptDetails(deptName) {
+        currentClickedDept = deptName;
+        document.getElementById('deptModalTitle').innerText = deptName + " - Present Employees";
+        
+        // Auto-fill the popup dates based on the main summary dates
+        document.getElementById('deptStartDate').value = document.getElementById('sumStart').value;
+        document.getElementById('deptEndDate').value = document.getElementById('sumEnd').value;
+        
+        document.getElementById('deptDetailsModal').style.display = "flex";
+        showDeptSpecificData();
+    }
+
+    // NEW: Calculate and show specific department data inside the popup
+    function showDeptSpecificData() {
+        let sVal = document.getElementById('deptStartDate').value; 
+        let eVal = document.getElementById('deptEndDate').value;
+        
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01'); 
+        let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); 
+        eDate.setHours(23,59,59,999);
+
+        let counts = {};
+        let totalEntries = 0;
+
+        document.querySelectorAll('#attBody tr').forEach(row => {
+            let dateStr = row.cells[0].innerText;
+            let name = row.cells[1].innerText;
+            let dept = row.cells[2].innerText;
+            
+            if (dept === currentClickedDept) {
+                let rowDateObj = parseDDMMYYYY(dateStr);
+                if (rowDateObj >= sDate && rowDateObj <= eDate) {
+                    counts[name] = (counts[name] || 0) + 1;
+                    totalEntries++;
+                }
+            }
+        });
+
+        let html = "";
+        for (let name in counts) {
+            html += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #ddd;">
+                        <span><b>${name}</b></span>
+                        <span style="color:#4CAF50; font-weight:bold;">${counts[name]} days</span>
+                     </div>`;
+        }
+        
+        if (html === "") {
+            document.getElementById('deptModalDataList').innerHTML = "<p style='color:red; text-align:center;'>No attendance data found for these dates.</p>";
+        } else {
+            document.getElementById('deptModalDataList').innerHTML = 
+                `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 10px; text-align:center; background:#e3f2fd; padding:5px;">Total Present Entries: ${totalEntries}</div>` + html;
+        }
+    }
+
+    function updateDepartmentCards(sDate, eDate) {
+        let container = document.getElementById('deptCardsContainer');
+        container.innerHTML = "";
+        
+        if(Object.keys(data).length === 0) return; 
+
+        let deptPresentCounts = {};
+        for(let dept in data) {
+            deptPresentCounts[dept] = 0;
+        }
+
+        document.querySelectorAll('#attBody tr').forEach(row => {
+            let dateStr = row.cells[0].innerText;
+            let dept = row.cells[2].innerText;
+            
+            let rowDateObj = parseDDMMYYYY(dateStr);
+            
+            if (rowDateObj >= sDate && rowDateObj <= eDate) {
+                if(deptPresentCounts[dept] !== undefined) {
+                    deptPresentCounts[dept]++;
+                }
+            }
+        });
+
+        let colors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#009688', '#673AB7'];
+        let colorIndex = 0;
+
+        for(let dept in data) {
+            let totalEmps = data[dept].length;
+            let presentCount = deptPresentCounts[dept] || 0;
+            let cardColor = colors[colorIndex % colors.length];
+            colorIndex++;
+            
+            // Added onclick event to the card
+            let card = `
+            <div class="dept-card" style="border-top-color: ${cardColor};" onclick="openDeptDetails('${dept}')">
+                <h4>${dept}</h4>
+                <div class="count" style="color: ${cardColor};">${presentCount} <span class="total">/ ${totalEmps}</span></div>
+                <div style="font-size:12px; color:#666; margin-top:5px;">Click to view details</div>
+            </div>`;
+            container.innerHTML += card;
+        }
+    }
+
+    function updateSummary() {
+        let sVal = document.getElementById('sumStart').value; 
+        let eVal = document.getElementById('sumEnd').value;
+        let selectedDept = document.getElementById('summaryDept').value;
+        
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01'); 
+        let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); 
+        eDate.setHours(23,59,59,999);
+        
+        updateDepartmentCards(sDate, eDate);
+
+        let counts = {};
+        let totalEntries = 0;
+        
+        document.querySelectorAll('#attBody tr').forEach(row => {
+            let dateStr = row.cells[0].innerText;
+            let name = row.cells[1].innerText;
+            let dept = row.cells[2].innerText;
+            
+            let rowDateObj = parseDDMMYYYY(dateStr);
+            
+            let dateMatch = (rowDateObj >= sDate && rowDateObj <= eDate);
+            let deptMatch = (selectedDept === "all" || selectedDept === dept);
+            
+            if (dateMatch && deptMatch) {
+                counts[name] = (counts[name] || 0) + 1;
+                totalEntries++;
+            }
+        });
+        
+        let summaryHtml = ""; 
+        for (let name in counts) { 
+            summaryHtml += `<b>${name}</b>: ${counts[name]} days <br>`; 
+        }
+        
+        if(summaryHtml === "") {
+            document.getElementById('summaryList').innerHTML = "No attendance data found for these filters.";
+        } else {
+            document.getElementById('summaryList').innerHTML = `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #90caf9; padding-bottom: 5px;">Total Present Entries: ${totalEntries}</div>` + summaryHtml;
+        }
+    }
+
+    function updateDashboardStats() {
+        let depts = Object.keys(data).length; let emps = 0;
+        for(let d in data) { emps += data[d].length; }
+        document.getElementById('dashDepts').innerText = depts; document.getElementById('dashEmps').innerText = emps;
+    }
+    
+    function loadDepts() {
+        let deptSelect = document.getElementById('empDept'); 
+        let summaryDeptSelect = document.getElementById('summaryDept');
+        
+        deptSelect.innerHTML = '<option value="">Select Dept First</option>';
+        summaryDeptSelect.innerHTML = '<option value="all">All Departments</option>';
+        
+        for(let dept in data) { 
+            deptSelect.innerHTML += `<option value="${dept}">${dept}</option>`; 
+            summaryDeptSelect.innerHTML += `<option value="${dept}">${dept}</option>`;
+        }
+    }
+    
+    function updateEmployeeList() {
+        let dept = document.getElementById('empDept').value; let nameSelect = document.getElementById('empName');
+        nameSelect.innerHTML = '<option value="">Select Name</option>';
+        if(data[dept]) { data[dept].forEach(n => nameSelect.innerHTML += `<option value="${n}">${n}</option>`); }
+    }
+
+    function openHistoryModal() { document.getElementById('historyModal').style.display = "flex"; document.getElementById('menuContent').style.display = "none"; }
+    function parseDDMMYYYY(dateStr) { let parts = dateStr.split('/'); return new Date(parts[2], parts[1] - 1, parts[0]); }
+    
+    function filterTable() {
+        let sVal = document.getElementById('histStart').value; let eVal = document.getElementById('histEnd').value;
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01'); let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); eDate.setHours(23,59,59,999);
+        document.querySelectorAll('#attBody tr').forEach(row => {
+            let rowDateObj = parseDDMMYYYY(row.cells[0].innerText); row.style.display = (rowDateObj >= sDate && rowDateObj <= eDate) ? "" : "none";
+        });
+    }
+    
+    function clearFilter() { document.getElementById('histStart').value = ""; document.getElementById('histEnd').value = ""; document.querySelectorAll('#attBody tr').forEach(row => row.style.display = ""); }
+    
+    function clearAttendanceData() { let code = Math.floor(1000 + Math.random() * 9000); if(prompt("Security Check! Enter code to clear ONLY Local Attendance Data: " + code) == code) { localStorage.removeItem("attendanceData"); document.getElementById('attBody').innerHTML = ""; updateSummary(); alert("Local Data Cleared! Google Sheet is safe."); } else { alert("Wrong Code!"); } document.getElementById('menuContent').style.display = "none"; }
+
+    function setInitialDates() {
+        let today = new Date();
+        
+        let format = (d) => {
+            let offset = d.getTimezoneOffset() * 60000;
+            let localISOTime = (new Date(d - offset)).toISOString().slice(0, -1);
+            return localISOTime.split('T')[0];
+        };
+        
+        document.getElementById('attDate').value = format(today);
+        document.getElementById('sumStart').value = format(today); 
+        document.getElementById('sumEnd').value = format(today);
+    }
+
+    window.onload = () => {
+        setInitialDates();
+        if(Object.keys(data).length > 0) { loadDepts(); updateDashboardStats(); } 
+        else { fetchListFromSheet(); }
+        
+        document.getElementById('attBody').innerHTML = localStorage.getItem("attendanceData") || ""; 
+        updateSummary(); 
+    };
+</script>
+</body>
+</html>

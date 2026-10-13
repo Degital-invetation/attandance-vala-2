@@ -40,6 +40,15 @@
         table { width: 100%; border-collapse: collapse; background: #fff; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #333; color: white; position: sticky; top: 0; }
+
+        /* PDF Print Setting */
+        @media print {
+            body { background: white; padding: 0; }
+            .header, .dashboard, .dept-cards-grid, .form-box, .menu-content, button { display: none !important; }
+            .summary-box { border: none; background: white; margin: 0; padding: 0; }
+            .summary-filters { display: none !important; }
+            .summary-list > div { page-break-inside: avoid; border: 1px solid #ccc !important; box-shadow: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -87,6 +96,7 @@
             <select id="summaryDept" onchange="updateSummary()">
                 <option value="all">All Departments</option>
             </select>
+            <button onclick="window.print()" style="background: #E91E63; color: white; border: none; cursor: pointer; font-weight: bold; padding: 5px 10px; border-radius: 4px; margin-left: 5px;">📥 Export PDF</button>
         </div>
     </h3>
     <div id="summaryList" class="summary-list">No data yet.</div>
@@ -109,7 +119,7 @@
     </div>
 </div>
 
-<!-- NEW: Department Specific Details Modal -->
+<!-- Department Specific Details Modal -->
 <div id="deptDetailsModal" class="modal-overlay">
     <div class="modal-content" style="max-width: 500px;">
         <div class="modal-header">
@@ -131,7 +141,7 @@
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwfxWYviIdE3Ea9ZNzR768AfuuT8Vmb096qpQJ3Z9NZ6Vf8w9u30pybxbnuES9Enmay/exec";
 
     let data = JSON.parse(localStorage.getItem("configData")) || {};
-    let currentClickedDept = ""; // To track which department card was clicked
+    let currentClickedDept = ""; 
 
     function toggleMenu() {
         let m = document.getElementById('menuContent');
@@ -260,12 +270,10 @@
         sendDataToGoogleSheet(formattedDate, name, dept, shift);
     }
 
-    // NEW: Open Department Modal when a card is clicked
     function openDeptDetails(deptName) {
         currentClickedDept = deptName;
         document.getElementById('deptModalTitle').innerText = deptName + " - Present Employees";
         
-        // Auto-fill the popup dates based on the main summary dates
         document.getElementById('deptStartDate').value = document.getElementById('sumStart').value;
         document.getElementById('deptEndDate').value = document.getElementById('sumEnd').value;
         
@@ -273,7 +281,6 @@
         showDeptSpecificData();
     }
 
-    // NEW: Calculate and show specific department data inside the popup
     function showDeptSpecificData() {
         let sVal = document.getElementById('deptStartDate').value; 
         let eVal = document.getElementById('deptEndDate').value;
@@ -283,36 +290,44 @@
         sDate.setHours(0,0,0,0); 
         eDate.setHours(23,59,59,999);
 
-        let counts = {};
+        let empData = {};
         let totalEntries = 0;
 
         document.querySelectorAll('#attBody tr').forEach(row => {
             let dateStr = row.cells[0].innerText;
             let name = row.cells[1].innerText;
             let dept = row.cells[2].innerText;
+            let shift = row.cells[3].innerText; 
             
             if (dept === currentClickedDept) {
                 let rowDateObj = parseDDMMYYYY(dateStr);
                 if (rowDateObj >= sDate && rowDateObj <= eDate) {
-                    counts[name] = (counts[name] || 0) + 1;
+                    if (!empData[name]) empData[name] = [];
+                    empData[name].push({ date: dateStr, shift: shift });
                     totalEntries++;
                 }
             }
         });
 
         let html = "";
-        for (let name in counts) {
-            html += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #ddd;">
-                        <span><b>${name}</b></span>
-                        <span style="color:#4CAF50; font-weight:bold;">${counts[name]} days</span>
+        for (let name in empData) {
+            let records = empData[name];
+            let detailsHtml = records.map(r => `<span style="display:inline-block; background:#eee; color:#333; padding:3px 8px; border-radius:4px; font-size:12px; margin:3px 5px 3px 0; border:1px solid #ccc;">📅 ${r.date} (${r.shift})</span>`).join("");
+
+            html += `<div style="padding:12px; border-bottom:1px solid #ddd; background:#fff;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center;">
+                            <span style="font-size:16px;"><b>${name}</b></span>
+                            <span style="color:#4CAF50; font-weight:bold; font-size:14px;">Total: ${records.length} days</span>
+                        </div>
+                        <div style="line-height:1.8;">${detailsHtml}</div>
                      </div>`;
         }
         
         if (html === "") {
-            document.getElementById('deptModalDataList').innerHTML = "<p style='color:red; text-align:center;'>No attendance data found for these dates.</p>";
+            document.getElementById('deptModalDataList').innerHTML = "<p style='color:red; text-align:center; padding:10px;'>No attendance data found for these dates.</p>";
         } else {
             document.getElementById('deptModalDataList').innerHTML = 
-                `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 10px; text-align:center; background:#e3f2fd; padding:5px;">Total Present Entries: ${totalEntries}</div>` + html;
+                `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 10px; text-align:center; background:#e3f2fd; padding:8px; border-radius:5px; border:1px solid #90caf9;">Total Present Entries: ${totalEntries}</div>` + html;
         }
     }
 
@@ -349,7 +364,6 @@
             let cardColor = colors[colorIndex % colors.length];
             colorIndex++;
             
-            // Added onclick event to the card
             let card = `
             <div class="dept-card" style="border-top-color: ${cardColor};" onclick="openDeptDetails('${dept}')">
                 <h4>${dept}</h4>
@@ -360,6 +374,7 @@
         }
     }
 
+    // YAHI WOH FUNCTION HAI JO RAMU WALI PROBLEM THEEK KAREGA
     function updateSummary() {
         let sVal = document.getElementById('sumStart').value; 
         let eVal = document.getElementById('sumEnd').value;
@@ -372,13 +387,14 @@
         
         updateDepartmentCards(sDate, eDate);
 
-        let counts = {};
+        let empData = {};
         let totalEntries = 0;
         
         document.querySelectorAll('#attBody tr').forEach(row => {
             let dateStr = row.cells[0].innerText;
             let name = row.cells[1].innerText;
             let dept = row.cells[2].innerText;
+            let shift = row.cells[3].innerText; 
             
             let rowDateObj = parseDDMMYYYY(dateStr);
             
@@ -386,20 +402,39 @@
             let deptMatch = (selectedDept === "all" || selectedDept === dept);
             
             if (dateMatch && deptMatch) {
-                counts[name] = (counts[name] || 0) + 1;
+                // NAYA LOGIC: Naam aur Department milakar key banai
+                let uniqueKey = name + "_" + dept;
+                
+                if (!empData[uniqueKey]) {
+                    empData[uniqueKey] = { empName: name, deptName: dept, records: [] };
+                }
+                empData[uniqueKey].records.push({ date: dateStr, shift: shift });
                 totalEntries++;
             }
         });
         
         let summaryHtml = ""; 
-        for (let name in counts) { 
-            summaryHtml += `<b>${name}</b>: ${counts[name]} days <br>`; 
+        for (let key in empData) { 
+            let records = empData[key].records;
+            let empName = empData[key].empName;
+            let deptName = empData[key].deptName;
+            
+            let detailsHtml = records.map(r => `<span style="display:inline-block; background:#eee; color:#333; padding:3px 8px; border-radius:4px; font-size:12px; margin:3px 5px 3px 0; border:1px solid #ccc;">📅 ${r.date} (${r.shift})</span>`).join("");
+
+            summaryHtml += `
+            <div style="padding:12px; border-bottom:1px solid #ddd; background:#fff; margin-bottom:10px; border-radius:5px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center; flex-wrap: wrap;">
+                    <span style="font-size:16px;"><b>${empName}</b> <span style="color:#666; font-size:14px;">(${deptName})</span></span>
+                    <span style="color:#4CAF50; font-weight:bold; font-size:14px;">Total Shifts: ${records.length}</span>
+                </div>
+                <div style="line-height:1.8;">${detailsHtml}</div>
+            </div>`; 
         }
         
         if(summaryHtml === "") {
-            document.getElementById('summaryList').innerHTML = "No attendance data found for these filters.";
+            document.getElementById('summaryList').innerHTML = "<p style='text-align:center; padding:10px; color:#666;'>No attendance data found for these filters.</p>";
         } else {
-            document.getElementById('summaryList').innerHTML = `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #90caf9; padding-bottom: 5px;">Total Present Entries: ${totalEntries}</div>` + summaryHtml;
+            document.getElementById('summaryList').innerHTML = `<div style="color: #0d47a1; font-weight: bold; margin-bottom: 10px; text-align:center; background:#e3f2fd; padding:8px; border-radius:5px; border:1px solid #90caf9;">Total Present Entries: ${totalEntries}</div>` + summaryHtml;
         }
     }
 
